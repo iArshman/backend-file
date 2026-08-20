@@ -25,7 +25,7 @@ const __dirname = path.dirname(__filename);
 // MongoDB Connection
 const mongoUri = process.env.MONGODB_URI || "";
 if (mongoUri) {
-  mongoose.connect(mongoUri, { dbName: "TG-Drive-filemanagerx" })
+  mongoose.connect(mongoUri, { dbName: "TG-Drive" })
     .then(() => console.log("MongoDB connected successfully to TG-Drive database"))
     .catch(err => console.error("MongoDB connection error:", err));
 }
@@ -51,6 +51,7 @@ const FileMetadata = mongoose.model("FileMetadata", FileMetadataSchema, "Files")
 const FolderSchema = new mongoose.Schema({
   name: { type: String, required: true },
   path: { type: String, default: "" }, // Full path including name
+  threadId: { type: Number },
   createdAt: { type: Number, default: () => Math.floor(Date.now() / 1000) },
 });
 
@@ -277,6 +278,28 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const folder = req.body.folder || "";
     
+    let threadId: number | undefined = undefined;
+    if (folder && bot && channelId) {
+      try {
+        let folderMeta = await FolderMetadata.findOne({ path: folder });
+        if (folderMeta && folderMeta.threadId) {
+          threadId = folderMeta.threadId;
+        } else {
+          console.log(`[BotAPI] Attempting to create Forum Topic for folder: ${folder}`);
+          const topic = await bot.telegram.createForumTopic(channelId, folder);
+          threadId = topic.message_thread_id;
+          if (!folderMeta) {
+            await FolderMetadata.create({ name: folder, path: folder, threadId });
+          } else {
+            folderMeta.threadId = threadId;
+            await folderMeta.save();
+          }
+        }
+      } catch (err: any) {
+        console.warn("[BotAPI] Failed to create topic (is group a forum?):", err.message);
+      }
+    }
+
     const filePath = req.file.path;
     const caption = folder ? `F[${folder}] | ${req.file.originalname}` : req.file.originalname;
     
@@ -287,7 +310,7 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
     if (req.file.size < 50 * 1024 * 1024 && bot && channelId) {
       try {
         console.log(`[BotAPI] Uploading ${req.file.originalname} via Telegraf...`);
-        const telegrafRes = await bot.telegram.sendDocument(channelId, { source: filePath }, { caption });
+        const telegrafRes = await bot.telegram.sendDocument(channelId, { source: filePath }, { caption, message_thread_id: threadId });
         result = { id: (telegrafRes as any).message_id };
         console.log(`[BotAPI] Upload successful: ${result.id}`);
       } catch (err: any) {
@@ -313,6 +336,7 @@ app.post("/api/upload", requireAuth, upload.single("file"), async (req, res) => 
         file: filePath,
         caption: caption,
         forceDocument: true,
+        replyTo: threadId,
         progressCallback: (progress) => {
           const percent = Math.round(progress * 100);
           if (percent % 25 === 0) { 
