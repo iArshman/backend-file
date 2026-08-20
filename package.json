@@ -1,0 +1,29 @@
+{
+  "name": "tg-drive-backend",
+  "version": "1.0.0",
+  "description": "Telegram Drive Backend Server",
+  "main": "server.ts",
+  "type": "module",
+  "scripts": {
+    "start": "node --loader ts-node/esm server.ts",
+    "dev": "nodemon --loader ts-node/esm server.ts"
+  },
+  "dependencies": {
+    "archiver": "^5.3.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "mongoose": "^7.0.3",
+    "multer": "^1.4.5-lts.1",
+    "telegraf": "^4.12.2",
+    "telegram": "^2.19.14"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.13",
+    "@types/express": "^4.17.17",
+    "@types/multer": "^1.4.7",
+    "@types/node": "^18.15.11",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.4"
+  }
+}
